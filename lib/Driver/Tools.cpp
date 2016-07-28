@@ -8699,6 +8699,8 @@ static std::string getLinuxDynamicLinker(const ArgList &Args,
   else if (Arch == llvm::Triple::x86_64 &&
            ToolChain.getTriple().getEnvironment() == llvm::Triple::GNUX32)
     return "/libx32/ld-linux-x32.so.2";
+  else if (Arch == llvm::Triple::riscv64)
+    return "/lib/ld.so.1";
   else
     return "/lib64/ld-linux-x86-64.so.2";
 }
