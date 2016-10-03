@@ -2452,7 +2452,9 @@ void Generic_ELF::addClangTargetOptions(const ArgList &DriverArgs,
        (!V.isOlderThan(4, 7, 0) || getTriple().isAndroid())) ||
       getTriple().getOS() == llvm::Triple::NaCl ||
       (getTriple().getVendor() == llvm::Triple::MipsTechnologies &&
-       !getTriple().hasEnvironment());
+       !getTriple().hasEnvironment()) ||
+    getTriple().getArch() == llvm::Triple::riscv ||
+    getTriple().getArch() == llvm::Triple::riscv64;
 
   if (DriverArgs.hasFlag(options::OPT_fuse_init_array,
                          options::OPT_fno_use_init_array, UseInitArrayDefault))
