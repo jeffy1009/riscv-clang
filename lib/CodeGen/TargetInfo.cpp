@@ -5525,12 +5525,10 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::Function *F, StringRef Name,
 namespace {
 
 class RISCVABIInfo : public ABIInfo {
-  static const unsigned MinABIStackAlignInBytes = 4;
+  bool IsRV64;
 public:
-  RISCVABIInfo(CodeGenTypes &CGT) : ABIInfo(CGT) {}
+  RISCVABIInfo(CodeGenTypes &CGT, bool is64) : ABIInfo(CGT), IsRV64(is64) {}
 
-
-  bool isPromotableIntegerType(QualType Ty) const;
   bool isCompoundType(QualType Ty) const;
   bool isFPArgumentType(QualType Ty) const;
 
@@ -5550,8 +5548,8 @@ public:
 
 class RISCVTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
-  RISCVTargetCodeGenInfo(CodeGenTypes &CGT)
-    : TargetCodeGenInfo(new RISCVABIInfo(CGT)) {}
+  RISCVTargetCodeGenInfo(CodeGenTypes &CGT, bool is64)
+    : TargetCodeGenInfo(new RISCVABIInfo(CGT, is64)) {}
 };
 
 }
@@ -5636,7 +5634,7 @@ ABIArgInfo RISCVABIInfo::classifyReturnType(QualType RetTy) const {
     return ABIArgInfo::getIgnore();
 
   //All types that fit in two words are passed directly
-  if (Size <= 64) 
+  if (Size <= (IsRV64? 128 : 64))
     return (RetTy->isPromotableIntegerType() ?
             ABIArgInfo::getExtend() : ABIArgInfo::getDirect());
   return getNaturalAlignIndirect(RetTy);
@@ -5649,8 +5647,8 @@ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty) const {
 
   // Values that are not less than two words are passed indirectly
   uint64_t Size = getContext().getTypeSize(Ty);
-  if (Size > 64)
-    return getNaturalAlignIndirect(Ty);
+  if (Size > (IsRV64? 128 : 64))
+    return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
 
   // Handle small structures.
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
@@ -5658,7 +5656,7 @@ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty) const {
     // fail the size test above.
     const RecordDecl *RD = RT->getDecl();
     if (RD->hasFlexibleArrayMember())
-      return getNaturalAlignIndirect(Ty);
+      return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
 
     // The structure is passed as an unextended integer, a float, or a double.
     llvm::Type *PassTy;
@@ -5678,7 +5676,7 @@ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty) const {
 
   // Non-structure compounds are passed indirectly.
   if (isCompoundType(Ty))
-    return getNaturalAlignIndirect(Ty);
+    return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
 
   return ABIArgInfo::getDirect(0);
 }
@@ -7761,5 +7759,9 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
     return *(TheTargetCodeGenInfo = new SparcV9TargetCodeGenInfo(Types));
   case llvm::Triple::xcore:
     return *(TheTargetCodeGenInfo = new XCoreTargetCodeGenInfo(Types));
+  case llvm::Triple::riscv:
+    return *(TheTargetCodeGenInfo = new RISCVTargetCodeGenInfo(Types, false));
+  case llvm::Triple::riscv64:
+    return *(TheTargetCodeGenInfo = new RISCVTargetCodeGenInfo(Types, true));
   }
 }
